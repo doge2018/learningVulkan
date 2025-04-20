@@ -1037,7 +1037,11 @@ namespace loguru
 	// Where we store the custom thread name set by `set_thread_name`
 	char* thread_name_buffer()
 	{
-		__declspec( thread ) static char thread_name[LOGURU_THREADNAME_WIDTH + 1] = {0};
+		#if defined(_MSC_VER)
+			__declspec( thread ) static char thread_name[LOGURU_THREADNAME_WIDTH + 1] = {0};
+		#else
+    		thread_local static char thread_name[LOGURU_THREADNAME_WIDTH + 1] = {0};
+		#endif	
 		return &thread_name[0];
 	}
 #endif // LOGURU_WINTHREADS
