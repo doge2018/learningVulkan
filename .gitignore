@@ -1,5 +1,6 @@
 build/
 out/
 externals/glfw
+externals/plog
 .vscode/
-mylog
+log.txt
