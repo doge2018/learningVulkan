@@ -39,7 +39,9 @@ int main(){
     vector<const char *> vValidations;
     const char *layerName = "VK_LAYER_KHRONOS_validation";
     vValidations.push_back(layerName);
-    vkInstanceInfo.enabledLayerCount = static_cast<uint32_t>(vValidations.size());
+    //验证层数量
+    const uint32_t layerCount{static_cast<uint32_t>(vValidations.size())};
+    vkInstanceInfo.enabledLayerCount = layerCount;
     vkInstanceInfo.ppEnabledLayerNames = vValidations.data();
     
     //日志记录
