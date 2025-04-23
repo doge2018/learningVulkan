@@ -7,9 +7,6 @@
 #include "plog/Initializers/RollingFileInitializer.h"
 using namespace std;
 
-//标示资源的宏
-
-
 int main(){
     //日志初始化
     plog::init(plog::verbose, "C:\\onedrive\\project\\learningVulkan\\log.txt",51200,1);
@@ -19,6 +16,7 @@ int main(){
     if(!glfwInit()){
         LOGE<<"glfwInit";
     }
+    LOGI<<"init glfw";
     GlfwCleaner glfwCleaner;
     //检查glfw vulkan支持
     if(!glfwVulkanSupported()){
@@ -51,22 +49,13 @@ int main(){
     vkInstanceInfo.enabledLayerCount = layerCount;
     vkInstanceInfo.ppEnabledLayerNames = layerNames.data();
     
-    //日志记录
-    LOGI<<"ppEnabledExtensionNames:";
-    for(uint32_t i = 0;i<glfwExtCount;++i){
-        LOGI<<glfwExts[i];
-    }
-    LOGI<<"ppEnabledLayerNames:";
-    for(auto layer:layerNames){
-        LOGI<<layer;
-    }
-
     //创建instance
     VkInstance instance;
     if(VK_SUCCESS != vkCreateInstance(&vkInstanceInfo,nullptr,&instance)){
         LOGE<<"vkCreateInstance";
         return -1;
     }
+    LOGI<<"create instance";
     InstanceCleaner instanceCleaner{&instance};
 
     //创建glfw window
@@ -79,6 +68,7 @@ int main(){
         LOGE<<"glfwCreateWindow";
         return -1;
     }
+    LOGI<<"create window";
     WindowCleaner windowCleaner{pwindow};
     
     //创建surface
@@ -95,6 +85,7 @@ int main(){
         }    
         return -1;
     }
+    LOGI<<"create surface";
     SurfaceCleaner surfaceCleaner{&instance,&surface};
 
     //选择物理设备
