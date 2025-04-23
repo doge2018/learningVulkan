@@ -25,24 +25,31 @@ int main(){
         LOGE<<"glfwVulkanSupported";
         return -1;
     }
+
+    //需要开启的扩展
     //获取glfw所需扩展
     uint32_t glfwExtCount = 0;
     const char **glfwExts = glfwGetRequiredInstanceExtensions(&glfwExtCount);
+    //需要开启的所有扩展的名字
+    vector<const char*> extNames(glfwExts, glfwExts+glfwExtCount);
+    //需要开启的扩展数量
+    uint32_t extCount{static_cast<uint32_t>(extNames.size())};
 
     //填写VkInstanceCreateInfo结构
     VkInstanceCreateInfo vkInstanceInfo{};
     vkInstanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    //填写所需扩展层
-    vkInstanceInfo.enabledExtensionCount = glfwExtCount;
-    vkInstanceInfo.ppEnabledExtensionNames = glfwExts;
+    //填写所需扩展
+    vkInstanceInfo.enabledExtensionCount = extCount;
+    vkInstanceInfo.ppEnabledExtensionNames = extNames.data();
     //填写所需验证层
-    vector<const char *> vValidations;
+    //要启用的所有验证层的名称
+    vector<const char *> layerNames;
     const char *layerName = "VK_LAYER_KHRONOS_validation";
-    vValidations.push_back(layerName);
+    layerNames.push_back(layerName);
     //验证层数量
-    const uint32_t layerCount{static_cast<uint32_t>(vValidations.size())};
+    const uint32_t layerCount{static_cast<uint32_t>(layerNames.size())};
     vkInstanceInfo.enabledLayerCount = layerCount;
-    vkInstanceInfo.ppEnabledLayerNames = vValidations.data();
+    vkInstanceInfo.ppEnabledLayerNames = layerNames.data();
     
     //日志记录
     LOGI<<"ppEnabledExtensionNames:";
@@ -50,7 +57,7 @@ int main(){
         LOGI<<glfwExts[i];
     }
     LOGI<<"ppEnabledLayerNames:";
-    for(auto layer:vValidations){
+    for(auto layer:layerNames){
         LOGI<<layer;
     }
 
