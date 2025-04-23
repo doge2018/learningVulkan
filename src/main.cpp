@@ -13,7 +13,7 @@ using namespace std;
 int main(){
     //日志初始化
     plog::init(plog::verbose, "C:\\onedrive\\project\\learningVulkan\\log.txt",51200,1);
-    LOGI << "enter main";
+    LOGI << "--enter main--";
 
     //init glfw
     if(!glfwInit()){
@@ -87,6 +87,57 @@ int main(){
         return -1;
     }
     SurfaceCleaner surfaceCleaner{&instance,&surface};
+
+    //选择物理设备
+    //枚举物理设备
+    uint32_t physicDeviceCount = 0;
+    if(VK_SUCCESS != vkEnumeratePhysicalDevices(instance,&physicDeviceCount,nullptr)){
+        LOGE<<"vkEnumeratePhysicalDevices";
+        return -1;
+    }
+    vector<VkPhysicalDevice> vphysicDivices(physicDeviceCount);
+    if(VK_SUCCESS != vkEnumeratePhysicalDevices(instance,&physicDeviceCount,vphysicDivices.data())){
+        LOGE<<"vkEnumeratePhysicalDevices";
+        return -1;
+    }
+    VkPhysicalDevice selected = VK_NULL_HANDLE;
+    for(auto physicDivice:vphysicDivices){
+        VkPhysicalDeviceProperties properties;
+        vkGetPhysicalDeviceProperties(physicDivice,&properties);
+        if(VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU == properties.deviceType){
+            selected = physicDivice;
+        }
+    }
+    if(VK_NULL_HANDLE == selected){
+        LOGE<<"selected null";
+    }
+    //检测物理设备的队列族是否支持渲染、以及呈现到surface
+    //获取队列族
+    uint32_t queueFamiliesCount = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(selected,&queueFamiliesCount,nullptr);
+    vector<VkQueueFamilyProperties> vqueueFamilies(queueFamiliesCount);
+    vkGetPhysicalDeviceQueueFamilyProperties(selected,&queueFamiliesCount,vqueueFamilies.data());
+    //检测
+    VkBool32 surfaceIsSuppoted = VK_FALSE;
+    bool queueFamilyIsOK = false;
+    //队列族索引
+    uint32_t queueFamiliesIndex = 0;
+    while(queueFamiliesIndex < queueFamiliesCount){
+        vkGetPhysicalDeviceSurfaceSupportKHR(selected,queueFamiliesIndex,surface,&surfaceIsSuppoted);
+        //存在一个队列族同时支持渲染和呈现到给定surface
+        if(vqueueFamilies[queueFamiliesIndex].queueFlags & VK_QUEUE_GRAPHICS_BIT && surfaceIsSuppoted){
+            queueFamilyIsOK = true;
+            break;
+        }
+        ++queueFamiliesIndex;
+    }
+    if(!queueFamilyIsOK){
+        LOGE<<"queueFamilyIsOK";
+        return -1;
+    }
+
+    //创建逻辑设备
+
 
     return 0;
 }
