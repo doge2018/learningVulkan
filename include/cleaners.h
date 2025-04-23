@@ -46,4 +46,15 @@ private:
     VkInstance *_pinstance;
     VkSurfaceKHR *_psurface;
 };
+
+struct DeviceCleaner{
+    DeviceCleaner(VkDevice *pdevice):_pdevice(pdevice){
+    }
+    ~DeviceCleaner(){
+        vkDestroyDevice(*_pdevice,nullptr);
+        LOGI<<"vkDestroyDevice";
+    }
+private:
+    VkDevice *_pdevice;
+};
 #endif

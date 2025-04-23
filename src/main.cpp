@@ -7,6 +7,9 @@
 #include "plog/Initializers/RollingFileInitializer.h"
 using namespace std;
 
+const uint32_t queueCount = 1;
+VkResult vkResult;
+
 int main(){
     //日志初始化
     plog::init(plog::verbose, "C:\\onedrive\\project\\learningVulkan\\log.txt",51200,1);
@@ -73,10 +76,10 @@ int main(){
     
     //创建surface
     VkSurfaceKHR surface;
-    auto result = glfwCreateWindowSurface(instance,pwindow,nullptr,&surface);
-    if(VK_SUCCESS != result){
+    vkResult = glfwCreateWindowSurface(instance,pwindow,nullptr,&surface);
+    if(VK_SUCCESS != vkResult){
         LOGE<<"glfwCreateWindowSurface";
-        switch (result) {
+        switch (vkResult) {
             case VK_ERROR_OUT_OF_HOST_MEMORY: LOGE << "VK_ERROR_OUT_OF_HOST_MEMORY";break;
             case VK_ERROR_OUT_OF_DEVICE_MEMORY: LOGE << "VK_ERROR_OUT_OF_DEVICE_MEMORY";break;
             case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR: LOGE << "VK_ERROR_NATIVE_WINDOW_IN_USE_KHR";break;
@@ -95,36 +98,37 @@ int main(){
         LOGE<<"vkEnumeratePhysicalDevices";
         return -1;
     }
-    vector<VkPhysicalDevice> vphysicDivices(physicDeviceCount);
-    if(VK_SUCCESS != vkEnumeratePhysicalDevices(instance,&physicDeviceCount,vphysicDivices.data())){
+    vector<VkPhysicalDevice> physicDivices(physicDeviceCount);
+    if(VK_SUCCESS != vkEnumeratePhysicalDevices(instance,&physicDeviceCount,physicDivices.data())){
         LOGE<<"vkEnumeratePhysicalDevices";
         return -1;
     }
-    VkPhysicalDevice selected = VK_NULL_HANDLE;
-    for(auto physicDivice:vphysicDivices){
+    LOGI<<"physicDeviceCount--"<<physicDeviceCount;
+    VkPhysicalDevice selectedPhysicDevice = VK_NULL_HANDLE;
+    for(auto physicDivice:physicDivices){
         VkPhysicalDeviceProperties properties;
         vkGetPhysicalDeviceProperties(physicDivice,&properties);
         if(VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU == properties.deviceType){
-            selected = physicDivice;
+            selectedPhysicDevice = physicDivice;
         }
     }
-    if(VK_NULL_HANDLE == selected){
+    if(VK_NULL_HANDLE == selectedPhysicDevice){
         LOGE<<"selected null";
+        return -1;
     }
-    //检测物理设备的队列族是否支持渲染、以及呈现到surface
+    //检测物理设备的队列族是否可同时支持渲染、以及呈现到surface
     //获取队列族
     uint32_t queueFamiliesCount = 0;
-    vkGetPhysicalDeviceQueueFamilyProperties(selected,&queueFamiliesCount,nullptr);
+    vkGetPhysicalDeviceQueueFamilyProperties(selectedPhysicDevice,&queueFamiliesCount,nullptr);
     vector<VkQueueFamilyProperties> vqueueFamilies(queueFamiliesCount);
-    vkGetPhysicalDeviceQueueFamilyProperties(selected,&queueFamiliesCount,vqueueFamilies.data());
+    vkGetPhysicalDeviceQueueFamilyProperties(selectedPhysicDevice,&queueFamiliesCount,vqueueFamilies.data());
     //检测
-    VkBool32 surfaceIsSuppoted = VK_FALSE;
-    bool queueFamilyIsOK = false;
+    bool queueFamilyIsOK = false;//队列族是否同时支持渲染和呈现
+    VkBool32 surfaceIsSuppoted = VK_FALSE;//是否支持呈现
     //队列族索引
     uint32_t queueFamiliesIndex = 0;
     while(queueFamiliesIndex < queueFamiliesCount){
-        vkGetPhysicalDeviceSurfaceSupportKHR(selected,queueFamiliesIndex,surface,&surfaceIsSuppoted);
-        //存在一个队列族同时支持渲染和呈现到给定surface
+        vkGetPhysicalDeviceSurfaceSupportKHR(selectedPhysicDevice,queueFamiliesIndex,surface,&surfaceIsSuppoted);
         if(vqueueFamilies[queueFamiliesIndex].queueFlags & VK_QUEUE_GRAPHICS_BIT && surfaceIsSuppoted){
             queueFamilyIsOK = true;
             break;
@@ -136,8 +140,59 @@ int main(){
         return -1;
     }
 
-    //创建逻辑设备
+    //查询物理设备支持的扩展
+    uint32_t extPropertiesCount = 0;
+    if(VK_SUCCESS != vkEnumerateDeviceExtensionProperties(selectedPhysicDevice,nullptr,&extPropertiesCount,nullptr)){
+        LOGE<<"1st vkEnumerateDeviceExtensionProperties";
+        return -1;
+    }
+    vector<VkExtensionProperties> extProperties(extPropertiesCount);
+    if(VK_SUCCESS != vkEnumerateDeviceExtensionProperties(selectedPhysicDevice,nullptr,&extPropertiesCount,extProperties.data())){
+        LOGE<<"2nd vkEnumerateDeviceExtensionProperties";
+        return -1;
+    }
+    for(const auto& extProperty:extProperties){
+        LOGI<<extProperty.extensionName;
+    }
 
+
+    //创建逻辑设备
+    //队列族信息
+    vector<VkDeviceQueueCreateInfo> deviceQueueCreateInfos;
+    //队列优先级
+    vector<float> queuePriorities(queueCount);
+    queuePriorities[0]= 1.0f;
+    VkDeviceQueueCreateInfo deviceQueueCreateInfo{};
+    deviceQueueCreateInfo.sType=VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    deviceQueueCreateInfo.queueFamilyIndex=queueFamiliesIndex;
+    deviceQueueCreateInfo.queueCount=queueCount;
+    deviceQueueCreateInfo.pQueuePriorities=queuePriorities.data();
+    deviceQueueCreateInfos.push_back(deviceQueueCreateInfo);
+    //队列族数量
+    const uint32_t queueFamilyCount = {static_cast<uint32_t>(deviceQueueCreateInfos.size())};
+    //填写deviceCreateInfo,
+    VkDeviceCreateInfo deviceCreateInfo{};
+    deviceCreateInfo.sType=VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    deviceCreateInfo.queueCreateInfoCount=queueFamilyCount;
+    deviceCreateInfo.pQueueCreateInfos=deviceQueueCreateInfos.data();
+    deviceCreateInfo.enabledLayerCount=layerCount;
+    deviceCreateInfo.ppEnabledLayerNames=layerNames.data();
+    deviceCreateInfo.enabledExtensionCount=extCount;
+    deviceCreateInfo.ppEnabledExtensionNames=extNames.data();
+    //创建逻辑设备
+    VkDevice device;
+    vkResult = vkCreateDevice(selectedPhysicDevice,&deviceCreateInfo,nullptr,&device);
+    if(VK_SUCCESS!= vkResult){
+        LOGE<<"vkCreateDevice--" << VkResultToString(vkResult);
+        LOGE<<"extCount--"<<extCount;
+        for(const auto &name:extNames){
+            LOGE<<name;
+        }
+
+        return -1;
+    }
+    LOGI<<"vkCreateDevice";
+    DeviceCleaner deviceCleaner{&device};
 
     return 0;
 }
