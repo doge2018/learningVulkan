@@ -7,4 +7,5 @@ bool checkValidationLayarSupport(const std::string &desiredLayerName);
 bool enumerateExtentionsSurppoted();
 std::string VkResultToString(VkResult result);
 
+
 #endif
