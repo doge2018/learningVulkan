@@ -109,7 +109,6 @@ int main(){
         LOGE<<"vkEnumeratePhysicalDevices" << VkResultToString(myVkResult);
         return -1;
     }
-    LOGI<<"physicDeviceCount--"<<physicDeviceCount;
     for(auto physicDivice:physicDivices){
         VkPhysicalDeviceProperties properties;
         vkGetPhysicalDeviceProperties(physicDivice,&properties);
@@ -188,11 +187,10 @@ int main(){
         LOGE<<"vkCreateDevice--" << VkResultToString(myVkResult);
         return -1;
     }
-    LOGI<<"vkCreateDevice";
+    LOGI<<"create device";
     DeviceCleaner deviceCleaner{&device};
 
     vector<VkSurfaceFormatKHR> surfaceFormats;
-    getPhysicalDeviceSurfaceFormat(&selectedPhysicDevice,&surface,surfaceFormats);
 
     //查询surface capability
     VkSurfaceCapabilitiesKHR surfaceCapability;
@@ -251,7 +249,7 @@ int main(){
         return -1;
     }
     LOGI<<"create swapchain";
-    SwapchainCleaner swapchainCleaner(&device,&swapchain);
+    SwapchainCleaner swapchainCleaner{&device,&swapchain};
 
     return 0;
 }
