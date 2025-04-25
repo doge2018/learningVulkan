@@ -57,4 +57,16 @@ struct DeviceCleaner{
 private:
     VkDevice *_pdevice;
 };
+
+struct SwapchainCleaner{
+    SwapchainCleaner(VkDevice *pdevice,VkSwapchainKHR *pswapchain):_pdevice(pdevice),_pswapchain(pswapchain){
+    }
+    ~SwapchainCleaner(){
+        vkDestroySwapchainKHR(*_pdevice,*_pswapchain,nullptr);
+        LOGI<<"vkDestroySwapchainKHR";
+    }
+private:
+    VkDevice *_pdevice;
+    VkSwapchainKHR *_pswapchain;
+};
 #endif

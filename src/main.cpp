@@ -5,10 +5,18 @@
 #include"cleaners.h"
 #include <plog/Log.h>
 #include "plog/Initializers/RollingFileInitializer.h"
+//#define _PRINT_SOMETHING_FOR_LEARNING
+
 using namespace std;
 
+//开启队列数
 const uint32_t queueCount = 1;
-VkResult vkResult;
+//缓冲数
+const uint32_t bufferCount = 2;
+VkResult myVkResult;
+//image格式srbg、非线性空间
+VkFormat imageFormat = VK_FORMAT_B8G8R8A8_SRGB;
+VkColorSpaceKHR imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 
 int main(){
     //日志初始化
@@ -55,8 +63,9 @@ int main(){
     
     //创建instance
     VkInstance instance;
-    if(VK_SUCCESS != vkCreateInstance(&vkInstanceInfo,nullptr,&instance)){
-        LOGE<<"vkCreateInstance";
+    myVkResult = vkCreateInstance(&vkInstanceInfo,nullptr,&instance);
+    if(VK_SUCCESS != myVkResult){
+        LOGE<<"vkCreateInstance" << VkResultToString(myVkResult);
         return -1;
     }
     LOGI<<"create instance";
@@ -77,16 +86,9 @@ int main(){
     
     //创建surface
     VkSurfaceKHR surface;
-    vkResult = glfwCreateWindowSurface(instance,pwindow,nullptr,&surface);
-    if(VK_SUCCESS != vkResult){
-        LOGE<<"glfwCreateWindowSurface";
-        switch (vkResult) {
-            case VK_ERROR_OUT_OF_HOST_MEMORY: LOGE << "VK_ERROR_OUT_OF_HOST_MEMORY";break;
-            case VK_ERROR_OUT_OF_DEVICE_MEMORY: LOGE << "VK_ERROR_OUT_OF_DEVICE_MEMORY";break;
-            case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR: LOGE << "VK_ERROR_NATIVE_WINDOW_IN_USE_KHR";break;
-            case VK_ERROR_SURFACE_LOST_KHR: LOGE << "VK_ERROR_SURFACE_LOST_KHR";break;
-            default: LOGE << "Unknown VkResult error";break;
-        }    
+    myVkResult = glfwCreateWindowSurface(instance,pwindow,nullptr,&surface);
+    if(VK_SUCCESS != myVkResult){
+        LOGE<<"glfwCreateWindowSurface"<<VkResultToString(myVkResult);
         return -1;
     }
     LOGI<<"create surface";
@@ -96,19 +98,22 @@ int main(){
     VkPhysicalDevice selectedPhysicDevice = VK_NULL_HANDLE;
     //枚举物理设备
     uint32_t physicDeviceCount = 0;
-    if(VK_SUCCESS != vkEnumeratePhysicalDevices(instance,&physicDeviceCount,nullptr)){
-        LOGE<<"vkEnumeratePhysicalDevices";
+    myVkResult = vkEnumeratePhysicalDevices(instance,&physicDeviceCount,nullptr);
+    if(VK_SUCCESS != myVkResult){
+        LOGE<<"vkEnumeratePhysicalDevices"<<VkResultToString(myVkResult);
         return -1;
     }
     vector<VkPhysicalDevice> physicDivices(physicDeviceCount);
-    if(VK_SUCCESS != vkEnumeratePhysicalDevices(instance,&physicDeviceCount,physicDivices.data())){
-        LOGE<<"vkEnumeratePhysicalDevices";
+    myVkResult = vkEnumeratePhysicalDevices(instance,&physicDeviceCount,physicDivices.data());
+    if(VK_SUCCESS != myVkResult){
+        LOGE<<"vkEnumeratePhysicalDevices" << VkResultToString(myVkResult);
         return -1;
     }
     LOGI<<"physicDeviceCount--"<<physicDeviceCount;
     for(auto physicDivice:physicDivices){
         VkPhysicalDeviceProperties properties;
         vkGetPhysicalDeviceProperties(physicDivice,&properties);
+        //选择独显
         if(VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU == properties.deviceType){
             selectedPhysicDevice = physicDivice;
         }
@@ -141,47 +146,112 @@ int main(){
         LOGE<<"queueFamilyIsOK";
         return -1;
     }
+    //队列族（索引）
+    vector<uint32_t> queueFamilies;
+    queueFamilies.push_back(physicDeviceQueueFamiliesIndex);
+    //队列族数量：1
+    const uint32_t queueFamiliesCount = {static_cast<uint32_t>(queueFamilies.size())};
 
     //创建逻辑设备
-    //队列族信息，一个队列族对应一个VkDeviceQueueCreateInfo结构
-    vector<VkDeviceQueueCreateInfo> queueFamilies;
-    //第一个队列族(共一个)
-    VkDeviceQueueCreateInfo queueFamily{};
-    //队列优先级，此队列族开启一个队列
+    //填写deviceCreateInfo,
+    VkDeviceCreateInfo deviceCreateInfo{};
+    deviceCreateInfo.sType=VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    deviceCreateInfo.queueCreateInfoCount=queueFamiliesCount;
+    //队列族Infos
+    vector<VkDeviceQueueCreateInfo> queueFamilyInfos;
+    //第一个队列族的Info(共一个)
+    VkDeviceQueueCreateInfo queueFamilyInfo{};
+    //填写队列族信息
+    queueFamilyInfo.sType=VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queueFamilyInfo.queueFamilyIndex=physicDeviceQueueFamiliesIndex;//此队列族的索引
+    queueFamilyInfo.queueCount=queueCount;
+    //队列优先级（此队列族只开启一个队列）
     vector<float> queuePriorities(queueCount);
     queuePriorities[0]= 1.0f;
-    //填写队列族信息
-    queueFamily.sType=VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queueFamily.queueFamilyIndex=physicDeviceQueueFamiliesIndex;//此队列族的索引
-    queueFamily.queueCount=queueCount;
-    queueFamily.pQueuePriorities=queuePriorities.data();
-    queueFamilies.push_back(queueFamily);
-    //队列族数量
-    const uint32_t queueFamiliesCount = {static_cast<uint32_t>(queueFamilies.size())};
+    queueFamilyInfo.pQueuePriorities=queuePriorities.data();
+    queueFamilyInfos.push_back(queueFamilyInfo);
+    deviceCreateInfo.pQueueCreateInfos=queueFamilyInfos.data();
+    deviceCreateInfo.enabledLayerCount=layersCount;
+    deviceCreateInfo.ppEnabledLayerNames=layers.data();
     //device extentions
     vector<const char *> deviceExts;
     const char *deviceExt = "VK_KHR_swapchain";
     deviceExts.push_back(deviceExt);
     //device extentions count
     const uint32_t deviceExtsCount = {static_cast<uint32_t>(deviceExts.size())};
-    //填写deviceCreateInfo,
-    VkDeviceCreateInfo deviceCreateInfo{};
-    deviceCreateInfo.sType=VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    deviceCreateInfo.queueCreateInfoCount=queueFamiliesCount;
-    deviceCreateInfo.pQueueCreateInfos=queueFamilies.data();
-    deviceCreateInfo.enabledLayerCount=layersCount;
-    deviceCreateInfo.ppEnabledLayerNames=layers.data();
     deviceCreateInfo.enabledExtensionCount=deviceExtsCount;
     deviceCreateInfo.ppEnabledExtensionNames=deviceExts.data();
-    //创建逻辑设备
+    //创建
     VkDevice device;
-    vkResult = vkCreateDevice(selectedPhysicDevice,&deviceCreateInfo,nullptr,&device);
-    if(VK_SUCCESS!= vkResult){
-        LOGE<<"vkCreateDevice--" << VkResultToString(vkResult);
+    myVkResult = vkCreateDevice(selectedPhysicDevice,&deviceCreateInfo,nullptr,&device);
+    if(VK_SUCCESS!= myVkResult){
+        LOGE<<"vkCreateDevice--" << VkResultToString(myVkResult);
         return -1;
     }
     LOGI<<"vkCreateDevice";
     DeviceCleaner deviceCleaner{&device};
+
+    vector<VkSurfaceFormatKHR> surfaceFormats;
+    getPhysicalDeviceSurfaceFormat(&selectedPhysicDevice,&surface,surfaceFormats);
+
+    //查询surface capability
+    VkSurfaceCapabilitiesKHR surfaceCapability;
+    myVkResult = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(selectedPhysicDevice,surface,&surfaceCapability);
+    if(VK_SUCCESS != myVkResult){
+        LOGE<<"vkGetPhysicalDeviceSurfaceCapabilitiesKHR--" << VkResultToString(myVkResult);
+        return -1;
+    }
+#ifdef _PRINT_SOMETHING_FOR_LEARNING
+    //image数量
+    LOGI<<"minImageCount:"<<surfaceCapability.minImageCount;
+    LOGI<<"maxImageCount:"<<surfaceCapability.maxImageCount;
+    //image 分辨率
+    if(0xFFFFFFFF!=surfaceCapability.currentExtent.width){
+        LOGI<<u8"固定分辨率:"<<surfaceCapability.currentExtent.width<<"*"<<surfaceCapability.currentExtent.height;
+    }
+    else{
+        LOGI<<u8"分辨率可设定为--";
+        LOGI<<u8"最大值："<<surfaceCapability.minImageExtent.width<<"*"<<surfaceCapability.minImageExtent.height;
+        LOGI<<u8"最小值："<<surfaceCapability.maxImageExtent.width<<"*"<<surfaceCapability.maxImageExtent.height;
+    }
+#endif
+
+    //创建swapchain
+    VkSwapchainCreateInfoKHR swapchainCreateInfo{};
+    swapchainCreateInfo.sType=VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    swapchainCreateInfo.pNext=nullptr;
+    swapchainCreateInfo.surface=surface;
+    swapchainCreateInfo.minImageCount=bufferCount;
+    swapchainCreateInfo.imageFormat=VK_FORMAT_B8G8R8A8_SRGB;
+    swapchainCreateInfo.imageColorSpace=VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+    //是固定分辨率
+    if(0xFFFFFFFF!=surfaceCapability.currentExtent.width){
+        swapchainCreateInfo.imageExtent=surfaceCapability.currentExtent;
+    }
+    else{
+        LOGE<<"Extent not set!";
+        return -1;
+    }
+    //非多层贴图
+    swapchainCreateInfo.imageArrayLayers=1;
+    swapchainCreateInfo.imageUsage=VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    swapchainCreateInfo.imageSharingMode=VK_SHARING_MODE_EXCLUSIVE;
+    swapchainCreateInfo.queueFamilyIndexCount=queueFamiliesCount;
+    swapchainCreateInfo.pQueueFamilyIndices=queueFamilies.data();
+    swapchainCreateInfo.preTransform=VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+    swapchainCreateInfo.compositeAlpha=VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    swapchainCreateInfo.presentMode=VK_PRESENT_MODE_FIFO_KHR;
+    swapchainCreateInfo.clipped=VK_TRUE;
+    swapchainCreateInfo.oldSwapchain=VK_NULL_HANDLE;
+    //创建
+    VkSwapchainKHR swapchain;
+    myVkResult =  vkCreateSwapchainKHR(device,&swapchainCreateInfo,nullptr,&swapchain);
+    if(VK_SUCCESS != myVkResult){
+        LOGE<<"vkCreateSwapchainKHR:" << VkResultToString(myVkResult);
+        return -1;
+    }
+    LOGI<<"create swapchain";
+    SwapchainCleaner swapchainCleaner(&device,&swapchain);
 
     return 0;
 }

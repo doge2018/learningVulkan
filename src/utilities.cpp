@@ -2,6 +2,7 @@
 #include <plog/Log.h>
 #include "plog/Initializers/RollingFileInitializer.h"
 using namespace std;
+
 //检查是否支持给定的验证层
 bool checkValidationLayarSupport(const string &desiredLayerName){
     uint32_t count = 0;
@@ -115,3 +116,27 @@ string VkResultToString(VkResult result){
             return "UNKNOWN_VK_RESULT";
     }
 }
+
+bool getPhysicalDeviceSurfaceFormat(VkPhysicalDevice *physicalDevice,VkSurfaceKHR *surface,std::vector<VkSurfaceFormatKHR> &formats){
+    uint32_t formatsCount = 0;
+    auto res = vkGetPhysicalDeviceSurfaceFormatsKHR(*physicalDevice,*surface,&formatsCount,nullptr);
+    if(VK_SUCCESS != res){
+        LOGE<<"1st vkGetPhysicalDeviceSurfaceFormatsKHR--"<<VkResultToString(res);
+        return false; 
+    }
+    formats.resize(formatsCount);
+    res = vkGetPhysicalDeviceSurfaceFormatsKHR(*physicalDevice,*surface,&formatsCount,formats.data());
+    if(VK_SUCCESS != res){
+        LOGE<<"2nd vkGetPhysicalDeviceSurfaceFormatsKHR--"<<VkResultToString(res);
+        return false; 
+    }
+    for(auto format:formats){
+        LOGI<<"format--"<<format.format<< "color space--"<<format.colorSpace;
+    }
+    return true;
+}
+
+
+
+
+
