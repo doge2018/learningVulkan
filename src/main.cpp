@@ -15,7 +15,7 @@ const uint32_t queueCount = 1;
 const uint32_t bufferCount = 2;
 VkResult myVkResult;
 //image格式srbg、非线性空间
-VkFormat imageFormat = VK_FORMAT_B8G8R8A8_SRGB;
+const VkFormat imageFormat = VK_FORMAT_B8G8R8A8_SRGB;
 VkColorSpaceKHR imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 
 int main(){
@@ -46,14 +46,14 @@ int main(){
     //需启用的instance extentions数量
     uint32_t instanceExtsCount{static_cast<uint32_t>(instanceExts.size())};
 
-    //验证层(共一个)
+    //验证层
     vector<const char *> layers;
+    //第1个验证层(共1个)
     const char *layer = "VK_LAYER_KHRONOS_validation";
     layers.push_back(layer);
-    //需启用的验证层数量
     const uint32_t layersCount{static_cast<uint32_t>(layers.size())};
 
-    //填写VkInstanceCreateInfo结构
+    //VkInstanceCreateInfo
     VkInstanceCreateInfo vkInstanceInfo{};
     vkInstanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     vkInstanceInfo.enabledExtensionCount = instanceExtsCount;
@@ -145,11 +145,11 @@ int main(){
         LOGE<<"queueFamilyIsOK";
         return -1;
     }
-    //队列族（索引）
+    //队列族索引vector
     vector<uint32_t> queueFamilies;
+    //第1个队列族索引(共1个)
     queueFamilies.push_back(physicDeviceQueueFamiliesIndex);
-    //队列族数量：1
-    const uint32_t queueFamiliesCount = {static_cast<uint32_t>(queueFamilies.size())};
+    const uint32_t queueFamiliesCount{static_cast<uint32_t>(queueFamilies.size())};
 
     //创建逻辑设备
     //填写deviceCreateInfo,
@@ -158,14 +158,14 @@ int main(){
     deviceCreateInfo.queueCreateInfoCount=queueFamiliesCount;
     //队列族Infos
     vector<VkDeviceQueueCreateInfo> queueFamilyInfos;
-    //第一个队列族的Info(共一个)
+    //第一个队列族Info(共一个)
     VkDeviceQueueCreateInfo queueFamilyInfo{};
-    //填写队列族信息
     queueFamilyInfo.sType=VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     queueFamilyInfo.queueFamilyIndex=physicDeviceQueueFamiliesIndex;//此队列族的索引
     queueFamilyInfo.queueCount=queueCount;
-    //队列优先级（此队列族只开启一个队列）
+    //队列优先级vector
     vector<float> queuePriorities(queueCount);
+    //第1个队列优先级(共1个)
     queuePriorities[0]= 1.0f;
     queueFamilyInfo.pQueuePriorities=queuePriorities.data();
     queueFamilyInfos.push_back(queueFamilyInfo);
@@ -177,7 +177,7 @@ int main(){
     const char *deviceExt = "VK_KHR_swapchain";
     deviceExts.push_back(deviceExt);
     //device extentions count
-    const uint32_t deviceExtsCount = {static_cast<uint32_t>(deviceExts.size())};
+    const uint32_t deviceExtsCount{static_cast<uint32_t>(deviceExts.size())};
     deviceCreateInfo.enabledExtensionCount=deviceExtsCount;
     deviceCreateInfo.ppEnabledExtensionNames=deviceExts.data();
     //创建
@@ -189,8 +189,6 @@ int main(){
     }
     LOGI<<"create device";
     DeviceCleaner deviceCleaner{&device};
-
-    vector<VkSurfaceFormatKHR> surfaceFormats;
 
     //查询surface capability
     VkSurfaceCapabilitiesKHR surfaceCapability;
@@ -217,10 +215,9 @@ int main(){
     //创建swapchain
     VkSwapchainCreateInfoKHR swapchainCreateInfo{};
     swapchainCreateInfo.sType=VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    swapchainCreateInfo.pNext=nullptr;
     swapchainCreateInfo.surface=surface;
     swapchainCreateInfo.minImageCount=bufferCount;
-    swapchainCreateInfo.imageFormat=VK_FORMAT_B8G8R8A8_SRGB;
+    swapchainCreateInfo.imageFormat=imageFormat;
     swapchainCreateInfo.imageColorSpace=VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
     //是固定分辨率
     if(0xFFFFFFFF!=surfaceCapability.currentExtent.width){
@@ -250,6 +247,60 @@ int main(){
     }
     LOGI<<"create swapchain";
     SwapchainCleaner swapchainCleaner{&device,&swapchain};
+
+    //创建render pass
+    //render pass create info
+    VkRenderPassCreateInfo renderPassCreateInfo{};
+    //attachment
+    vector<VkAttachmentDescription> attachmentsDescriptions;
+    //第一个attachment(共一个)
+    VkAttachmentDescription attachmentsDescription{};
+    attachmentsDescription.format=imageFormat;
+    attachmentsDescription.samples=VK_SAMPLE_COUNT_1_BIT;
+    attachmentsDescription.loadOp=VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentsDescription.storeOp=VK_ATTACHMENT_STORE_OP_STORE;
+    attachmentsDescription.stencilLoadOp=VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachmentsDescription.stencilStoreOp=VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachmentsDescription.initialLayout=VK_IMAGE_LAYOUT_UNDEFINED;
+    attachmentsDescription.finalLayout=VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    attachmentsDescriptions.push_back(attachmentsDescription);
+    //subpass
+    vector<VkSubpassDescription> subpasses;
+    //第一个subpass(共1个)
+    VkSubpassDescription subpass{};
+    subpass.pipelineBindPoint=VK_PIPELINE_BIND_POINT_GRAPHICS;
+    //attachmentReferences
+    vector<VkAttachmentReference> attachmentReferences;
+    //第一个attachmentReference(共1个)
+    VkAttachmentReference attachmentReference{};
+    attachmentReference.attachment=0;
+    attachmentReference.layout=VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    attachmentReferences.push_back(attachmentReference);
+    subpass.pColorAttachments=attachmentReferences.data();
+    subpass.colorAttachmentCount=static_cast<uint32_t>(attachmentReferences.size());
+    subpasses.push_back(subpass);
+    //subpass dependencies
+    vector<VkSubpassDependency> subpassDependencies;
+    //第1个subpass dependency(共1个)
+    VkSubpassDependency subpassDependency{};//暂时不用设置依赖
+    subpassDependencies.push_back(subpassDependency);
+    //VkRenderPassCreateInfo
+    renderPassCreateInfo.sType=VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    renderPassCreateInfo.pAttachments=attachmentsDescriptions.data();
+    renderPassCreateInfo.attachmentCount=static_cast<uint32_t>(attachmentsDescriptions.size());
+    renderPassCreateInfo.pSubpasses=subpasses.data();
+    renderPassCreateInfo.subpassCount=static_cast<uint32_t>(subpasses.size());
+    renderPassCreateInfo.pDependencies=subpassDependencies.data();
+    renderPassCreateInfo.dependencyCount=static_cast<uint32_t>(subpassDependencies.size());
+    //创建
+    VkRenderPass renderpass;
+    myVkResult=vkCreateRenderPass(device,&renderPassCreateInfo,nullptr,&renderpass);
+    if(VK_SUCCESS != myVkResult){
+        LOGE<<"vkCreateRenderPass--"<<VkResultToString(myVkResult);
+        return -1;
+    }
+    LOGI<<"create renderpass";
+    RenderpassCleaner renderpassCleaner{&device,&renderpass};
 
     return 0;
 }
