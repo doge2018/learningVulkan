@@ -109,7 +109,7 @@ int main(){
         LOGE<<"vkEnumeratePhysicalDevices" << VkResultToString(myVkResult);
         return -1;
     }
-    for(auto physicDivice:physicDivices){
+    for(auto &physicDivice:physicDivices){
         VkPhysicalDeviceProperties properties;
         vkGetPhysicalDeviceProperties(physicDivice,&properties);
         //选择独显
@@ -301,6 +301,45 @@ int main(){
     }
     LOGI<<"create renderpass";
     RenderpassCleaner renderpassCleaner{&device,&renderpass};
+
+    //获取image
+    uint32_t imageCount=0;
+    myVkResult = vkGetSwapchainImagesKHR(device,swapchain,&imageCount,nullptr);
+    if(VK_SUCCESS != myVkResult){
+        LOGE<<"1st vkGetSwapchainImagesKHR--"<<VkResultToString(myVkResult);
+        return -1;
+    }
+    vector<VkImage> images(imageCount);
+    myVkResult = vkGetSwapchainImagesKHR(device,swapchain,&imageCount,images.data());
+    if(VK_SUCCESS != myVkResult){
+        LOGE<<"2nd vkGetSwapchainImagesKHR--"<<VkResultToString(myVkResult);
+        return -1;
+    }
+    for(auto &image:images){
+        //创建attachments(image views)
+        vector<VkImageView> attachmentsForFreambuffer;
+        //创建第1个image view(共1个)
+        VkImageViewCreateInfo imageViewInfo{};
+        imageViewInfo.sType=VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        imageViewInfo.image=image;
+        imageViewInfo.viewType=VK_IMAGE_VIEW_TYPE_2D;
+        imageViewInfo.format=imageFormat;
+        VkComponentMapping componentMapping{};
+        componentMapping.r=VK_COMPONENT_SWIZZLE_IDENTITY;
+        componentMapping.g=VK_COMPONENT_SWIZZLE_IDENTITY;
+        componentMapping.b=VK_COMPONENT_SWIZZLE_IDENTITY;
+        componentMapping.a=VK_COMPONENT_SWIZZLE_IDENTITY;
+        imageViewInfo.components=componentMapping;
+        VkImageSubresourceRange subresourceRange{};
+        subresourceRange.aspectMask=VK_IMAGE_ASPECT_COLOR_BIT;
+        subresourceRange.baseMipLevel=0;
+        subresourceRange.levelCount=1;
+        subresourceRange.baseArrayLayer=0;
+        imageViewInfo.subresourceRange=subresourceRange;
+        //创建
+        
+        myVkResult = vkCreateImageView();
+    }
 
     return 0;
 }
