@@ -219,14 +219,14 @@ int main(){
     swapchainCreateInfo.minImageCount=bufferCount;
     swapchainCreateInfo.imageFormat=imageFormat;
     swapchainCreateInfo.imageColorSpace=VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-    //是固定分辨率
-    if(0xFFFFFFFF!=surfaceCapability.currentExtent.width){
-        swapchainCreateInfo.imageExtent=surfaceCapability.currentExtent;
-    }
-    else{
-        LOGE<<"Extent not set!";
+    if(0xFFFFFFFF==surfaceCapability.currentExtent.width){
+        //分辨率不是固定
+        LOGE<<"Extent is changeable";
         return -1;
     }
+    //image width and height
+    const VkExtent2D extent{surfaceCapability.currentExtent.width,surfaceCapability.currentExtent.height};
+    swapchainCreateInfo.imageExtent=extent;
     //非多层贴图
     swapchainCreateInfo.imageArrayLayers=1;
     swapchainCreateInfo.imageUsage=VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
@@ -279,17 +279,22 @@ int main(){
     subpass.pColorAttachments=attachmentReferences.data();
     subpass.colorAttachmentCount=static_cast<uint32_t>(attachmentReferences.size());
     subpasses.push_back(subpass);
-    //subpass dependencies
-    vector<VkSubpassDependency> subpassDependencies;
-    //第1个subpass dependency(共1个)
-    VkSubpassDependency subpassDependency{};//暂时不用设置依赖
-    subpassDependencies.push_back(subpassDependency);
     //VkRenderPassCreateInfo
     renderPassCreateInfo.sType=VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderPassCreateInfo.pAttachments=attachmentsDescriptions.data();
     renderPassCreateInfo.attachmentCount=static_cast<uint32_t>(attachmentsDescriptions.size());
     renderPassCreateInfo.pSubpasses=subpasses.data();
     renderPassCreateInfo.subpassCount=static_cast<uint32_t>(subpasses.size());
+    //subpass dependencies
+    vector<VkSubpassDependency> subpassDependencies(1);
+    //第1个subpass dependency(共1个)
+    subpassDependencies[0].srcSubpass=VK_SUBPASS_EXTERNAL;
+    subpassDependencies[0].dstSubpass=0;
+    subpassDependencies[0].srcStageMask=VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;//上一阶段是颜色输出，这是期望的要求
+    subpassDependencies[0].dstStageMask=VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;//此阶段也是颜色输出
+    subpassDependencies[0].srcAccessMask=0;//因为上一阶段是external，所以不需要特定的访问掩码
+    subpassDependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;//此阶段需要写color
+    subpassDependencies[0].dependencyFlags = 0;// 没有特殊依赖标志
     renderPassCreateInfo.pDependencies=subpassDependencies.data();
     renderPassCreateInfo.dependencyCount=static_cast<uint32_t>(subpassDependencies.size());
     //创建
@@ -315,9 +320,13 @@ int main(){
         LOGE<<"2nd vkGetSwapchainImagesKHR--"<<VkResultToString(myVkResult);
         return -1;
     }
+    //所有imageview
+    vector<VkImageView> imageviews;
+    //所有framebuffer
+    vector<VkFramebuffer> framebuffers;
     for(auto &image:images){
         //创建attachments(image views)
-        vector<VkImageView> attachmentsForFreambuffer;
+        vector<VkImageView> attachmentsForOneFreambuffer;
         //创建第1个image view(共1个)
         VkImageViewCreateInfo imageViewInfo{};
         imageViewInfo.sType=VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -335,11 +344,41 @@ int main(){
         subresourceRange.baseMipLevel=0;
         subresourceRange.levelCount=1;
         subresourceRange.baseArrayLayer=0;
+        subresourceRange.layerCount=1;
         imageViewInfo.subresourceRange=subresourceRange;
         //创建
-        
-        myVkResult = vkCreateImageView();
+        VkImageView imageView;
+        myVkResult = vkCreateImageView(device,&imageViewInfo,nullptr,&imageView);
+        if(VK_SUCCESS != myVkResult){
+            LOGE<<"vkCreateImageView--"<<VkResultToString(myVkResult);
+            return -1;
+        }
+        attachmentsForOneFreambuffer.push_back(imageView);
+        imageviews.push_back(imageView);
+
+        //创建framebuffer
+        VkFramebufferCreateInfo framebufferInfo{};
+        framebufferInfo.sType=VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebufferInfo.renderPass=renderpass;
+        framebufferInfo.pAttachments=attachmentsForOneFreambuffer.data();
+        framebufferInfo.attachmentCount=static_cast<uint32_t>(attachmentsForOneFreambuffer.size());
+        framebufferInfo.width=extent.width;
+        framebufferInfo.height=extent.height;
+        framebufferInfo.layers=1;
+        //创建
+        VkFramebuffer framebuffer;
+        myVkResult = vkCreateFramebuffer(device,&framebufferInfo,nullptr,&framebuffer);
+        if(VK_SUCCESS != myVkResult){
+            LOGE<<"vkCreateFramebuffer--"<<VkResultToString(myVkResult);
+            return -1;
+        }
+        framebuffers.push_back(framebuffer);
     }
+    LOGI<<"create imageviews and framebuffers";
+    //先创建imageviews cleaner，再创建framebuffers cleaner
+    ImageviewsCleaner imageviewsCleaner{&device,imageviews};
+    FramebuffersCleaner framebuffersCleaner{&device,framebuffers};
+    
 
     return 0;
 }

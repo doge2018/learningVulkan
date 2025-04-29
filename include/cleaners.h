@@ -84,4 +84,35 @@ private:
     VkDevice *_pdevice;
     VkRenderPass *_prenderpass;
 };
+
+struct FramebuffersCleaner{
+    FramebuffersCleaner(VkDevice *pdevice, std::vector<VkFramebuffer> &framebuffers):_pdevice(pdevice),_framebuffers(framebuffers){
+    }
+    ~FramebuffersCleaner(){
+        for(auto &framebuffer:_framebuffers){
+            vkDestroyFramebuffer(*_pdevice,framebuffer,nullptr);
+        }
+        _framebuffers.clear();
+        LOGI<<"vkDestroyFramebuffer";
+    }
+private:
+    VkDevice *_pdevice;
+    std::vector<VkFramebuffer> _framebuffers;
+};
+
+struct ImageviewsCleaner{
+    ImageviewsCleaner(VkDevice *pdevice, std::vector<VkImageView> &imageviews):_pdevice(pdevice),_imageviews(imageviews){
+    }
+    ~ImageviewsCleaner(){
+        for(auto &imageview:_imageviews){
+            vkDestroyImageView(*_pdevice,imageview,nullptr);
+        }
+        _imageviews.clear();
+        LOGI<<"vkDestroyImageView";
+    }
+private:
+    VkDevice *_pdevice;
+    std::vector<VkImageView> _imageviews;
+};
+
 #endif
