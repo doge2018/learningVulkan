@@ -3,6 +3,7 @@
 #include <GLFW/glfw3.h>
 #include"utilities.h"
 #include"cleaners.h"
+#include <glm/glm.hpp>
 #include <plog/Log.h>
 #include "plog/Initializers/RollingFileInitializer.h"
 //#define _PRINT_SOMETHING_FOR_LEARNING
@@ -95,7 +96,7 @@ int main(){
     SurfaceCleaner surfaceCleaner{&instance,&surface};
 
     //选择物理设备
-    VkPhysicalDevice selectedPhysicDevice = VK_NULL_HANDLE;
+    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     //枚举物理设备
     uint32_t physicDeviceCount = 0;
     myVkResult = vkEnumeratePhysicalDevices(instance,&physicDeviceCount,nullptr);
@@ -114,26 +115,26 @@ int main(){
         vkGetPhysicalDeviceProperties(physicDivice,&properties);
         //选择独显
         if(VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU == properties.deviceType){
-            selectedPhysicDevice = physicDivice;
+            physicalDevice = physicDivice;
         }
     }
-    if(VK_NULL_HANDLE == selectedPhysicDevice){
+    if(VK_NULL_HANDLE == physicalDevice){
         LOGE<<"selected null";
         return -1;
     }
     //检测selected physic device的队列族
     //获取队列族
     uint32_t physicDeviceQueueFamiliesCount = 0;
-    vkGetPhysicalDeviceQueueFamilyProperties(selectedPhysicDevice,&physicDeviceQueueFamiliesCount,nullptr);
+    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice,&physicDeviceQueueFamiliesCount,nullptr);
     vector<VkQueueFamilyProperties> physicDeviceQueueFamilies(physicDeviceQueueFamiliesCount);
-    vkGetPhysicalDeviceQueueFamilyProperties(selectedPhysicDevice,&physicDeviceQueueFamiliesCount,physicDeviceQueueFamilies.data());
+    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice,&physicDeviceQueueFamiliesCount,physicDeviceQueueFamilies.data());
     //检测
     bool queueFamilyIsOK = false;//是否同时支持渲染和呈现
     VkBool32 surfaceIsSuppoted = VK_FALSE;//是否支持呈现
     //队列族索引
     uint32_t physicDeviceQueueFamiliesIndex = 0;
     while(physicDeviceQueueFamiliesIndex < physicDeviceQueueFamiliesCount){
-        vkGetPhysicalDeviceSurfaceSupportKHR(selectedPhysicDevice,physicDeviceQueueFamiliesIndex,surface,&surfaceIsSuppoted);
+        vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice,physicDeviceQueueFamiliesIndex,surface,&surfaceIsSuppoted);
         if(physicDeviceQueueFamilies[physicDeviceQueueFamiliesIndex].queueFlags & VK_QUEUE_GRAPHICS_BIT && surfaceIsSuppoted){
             queueFamilyIsOK = true;
             break;
@@ -146,16 +147,16 @@ int main(){
         return -1;
     }
     //队列族索引vector
-    vector<uint32_t> queueFamilies;
+    vector<uint32_t> queueFamiliesIndexes;
     //第1个队列族索引(共1个)
-    queueFamilies.push_back(physicDeviceQueueFamiliesIndex);
-    const uint32_t queueFamiliesCount{static_cast<uint32_t>(queueFamilies.size())};
+    queueFamiliesIndexes.push_back(physicDeviceQueueFamiliesIndex);
+    const uint32_t queueFamiliesIndexCount{static_cast<uint32_t>(queueFamiliesIndexes.size())};
 
     //创建逻辑设备
     //填写deviceCreateInfo,
     VkDeviceCreateInfo deviceCreateInfo{};
     deviceCreateInfo.sType=VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    deviceCreateInfo.queueCreateInfoCount=queueFamiliesCount;
+    deviceCreateInfo.queueCreateInfoCount=queueFamiliesIndexCount;
     //队列族Infos
     vector<VkDeviceQueueCreateInfo> queueFamilyInfos;
     //第一个队列族Info(共一个)
@@ -182,7 +183,7 @@ int main(){
     deviceCreateInfo.ppEnabledExtensionNames=deviceExts.data();
     //创建
     VkDevice device;
-    myVkResult = vkCreateDevice(selectedPhysicDevice,&deviceCreateInfo,nullptr,&device);
+    myVkResult = vkCreateDevice(physicalDevice,&deviceCreateInfo,nullptr,&device);
     if(VK_SUCCESS!= myVkResult){
         LOGE<<"vkCreateDevice--" << VkResultToString(myVkResult);
         return -1;
@@ -192,7 +193,7 @@ int main(){
 
     //查询surface capability
     VkSurfaceCapabilitiesKHR surfaceCapability;
-    myVkResult = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(selectedPhysicDevice,surface,&surfaceCapability);
+    myVkResult = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice,surface,&surfaceCapability);
     if(VK_SUCCESS != myVkResult){
         LOGE<<"vkGetPhysicalDeviceSurfaceCapabilitiesKHR--" << VkResultToString(myVkResult);
         return -1;
@@ -231,8 +232,8 @@ int main(){
     swapchainCreateInfo.imageArrayLayers=1;
     swapchainCreateInfo.imageUsage=VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     swapchainCreateInfo.imageSharingMode=VK_SHARING_MODE_EXCLUSIVE;
-    swapchainCreateInfo.queueFamilyIndexCount=queueFamiliesCount;
-    swapchainCreateInfo.pQueueFamilyIndices=queueFamilies.data();
+    swapchainCreateInfo.queueFamilyIndexCount=queueFamiliesIndexCount;
+    swapchainCreateInfo.pQueueFamilyIndices=queueFamiliesIndexes.data();
     swapchainCreateInfo.preTransform=VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
     swapchainCreateInfo.compositeAlpha=VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     swapchainCreateInfo.presentMode=VK_PRESENT_MODE_FIFO_KHR;
@@ -378,7 +379,50 @@ int main(){
     //先创建imageviews cleaner，再创建framebuffers cleaner
     ImageviewsCleaner imageviewsCleaner{&device,imageviews};
     FramebuffersCleaner framebuffersCleaner{&device,framebuffers};
-    
+
+    //顶点数据
+    struct Vertex {
+        glm::vec2 position;
+        glm::vec3 color;
+    };
+    std::vector<Vertex> vertices = {
+        {{0.0f, 0.5f}, {1.0f, 0.0f, 0.0f}},//上面的顶点，红色
+        {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},//右下的顶点，绿色
+        {{-0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}}//左下的顶点，蓝色
+    };
+    //创建缓冲区
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType=VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size=sizeof(vertices[0])*vertices.size();
+    bufferInfo.usage=VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bufferInfo.sharingMode=VK_SHARING_MODE_EXCLUSIVE;
+    bufferInfo.pQueueFamilyIndices=queueFamiliesIndexes.data();
+    bufferInfo.queueFamilyIndexCount=queueFamiliesIndexCount;
+    //创建
+    VkBuffer buffer;
+    myVkResult = vkCreateBuffer(device,&bufferInfo,nullptr,&buffer);
+    if(VK_SUCCESS != myVkResult){
+        LOGE<<"vkCreateBuffer--"<<VkResultToString(myVkResult);
+        return -1;
+    }
+    //LOGI<<"create buffer";
+
+    //查询buffer内存需求
+    VkMemoryRequirements memeryReq;
+    vkGetBufferMemoryRequirements(device,buffer,&memeryReq);
+
+    //查询物理设备内存属性
+    VkPhysicalDeviceMemoryProperties physicalDeviceMemoryProperties;
+    vkGetPhysicalDeviceMemoryProperties(physicalDevice,&physicalDeviceMemoryProperties);
+    LOGI<< "memoryTypeCount--" <<physicalDeviceMemoryProperties.memoryTypeCount;
+    LOGI<< "memoryHeapCount--" <<physicalDeviceMemoryProperties.memoryHeapCount;
+
+
+
+    //申请内存
+
+    //销毁buffer
+    vkDestroyBuffer(device,buffer,nullptr);
 
     return 0;
 }
