@@ -115,4 +115,28 @@ private:
     std::vector<VkImageView> _imageviews;
 };
 
+struct BufferCleaner{
+    BufferCleaner(VkDevice *pdevice,VkBuffer *pbuffer):_pdevice(pdevice),_pbuffer(pbuffer){
+    }
+    ~BufferCleaner(){
+        vkDestroyBuffer(*_pdevice,*_pbuffer,nullptr);
+        LOGI<<"vkDestroyBuffer";
+    }
+private:
+    VkDevice *_pdevice;
+    VkBuffer *_pbuffer;
+};
+
+struct MemoryFreer{
+    MemoryFreer(VkDevice *pdevice,VkDeviceMemory *pmemory):_pdevice(pdevice),_pmemory(pmemory){
+    }
+    ~MemoryFreer(){
+        vkFreeMemory(*_pdevice,*_pmemory,nullptr);
+        LOGI<<"vkFreeMemory";
+    }
+private:
+    VkDevice *_pdevice;
+    VkDeviceMemory *_pmemory;
+};
+
 #endif

@@ -9,7 +9,8 @@
 //#define _PRINT_SOMETHING_FOR_LEARNING
 
 using namespace std;
-
+//可优化项：
+//减少硬编码
 //开启队列数
 const uint32_t queueCount = 1;
 //缓冲数
@@ -116,6 +117,7 @@ int main(){
         //选择独显
         if(VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU == properties.deviceType){
             physicalDevice = physicDivice;
+            break;
         }
     }
     if(VK_NULL_HANDLE == physicalDevice){
@@ -405,7 +407,8 @@ int main(){
         LOGE<<"vkCreateBuffer--"<<VkResultToString(myVkResult);
         return -1;
     }
-    //LOGI<<"create buffer";
+    LOGI<<"create buffer";
+    BufferCleaner bufferCleaner{&device,&buffer};
 
     //查询buffer内存需求
     VkMemoryRequirements memeryReq;
@@ -414,15 +417,39 @@ int main(){
     //查询物理设备内存属性
     VkPhysicalDeviceMemoryProperties physicalDeviceMemoryProperties;
     vkGetPhysicalDeviceMemoryProperties(physicalDevice,&physicalDeviceMemoryProperties);
-    LOGI<< "memoryTypeCount--" <<physicalDeviceMemoryProperties.memoryTypeCount;
-    LOGI<< "memoryHeapCount--" <<physicalDeviceMemoryProperties.memoryHeapCount;
+    //LOGI<< "memoryTypeCount--" <<physicalDeviceMemoryProperties.memoryTypeCount;
+    //LOGI<< "memoryHeapCount--" <<physicalDeviceMemoryProperties.memoryHeapCount;
 
-
+    //获得内存类型index，选择策略待进一步实现
+    uint32_t memoryTypeIndex = UINT32_MAX;
+    for(uint32_t i=0;i<physicalDeviceMemoryProperties.memoryTypeCount;++i){
+        if(memeryReq.memoryTypeBits & (1<<i)){
+            memoryTypeIndex = i;
+            break;
+        }
+    }
+    if(UINT32_MAX == memoryTypeIndex){
+        LOGE<<"there is no proper memory type";
+        return -1;
+    }
+    //LOGI << "memoryTypeIndex==" << memoryTypeIndex;
 
     //申请内存
+    VkMemoryAllocateInfo memoryInfo{};
+    memoryInfo.sType=VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    memoryInfo.allocationSize=memeryReq.size;
+    memoryInfo.memoryTypeIndex=memoryTypeIndex;
+    //申请
+    VkDeviceMemory memory;
+    myVkResult = vkAllocateMemory(device,&memoryInfo,nullptr,&memory);
+    if(VK_SUCCESS != myVkResult){
+        LOGE<<"vkAllocateMemory--"<<VkResultToString(myVkResult);
+        return -1;
+    }
+    LOGI << "allocate memory";
+    MemoryFreer memoryFreer{&device,&memory};
 
-    //销毁buffer
-    vkDestroyBuffer(device,buffer,nullptr);
+    
 
     return 0;
 }
