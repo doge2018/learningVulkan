@@ -387,15 +387,18 @@ int main(){
         glm::vec2 position;
         glm::vec3 color;
     };
-    std::vector<Vertex> vertices = {
+    std::vector<Vertex> vertexes = {
         {{0.0f, 0.5f}, {1.0f, 0.0f, 0.0f}},//上面的顶点，红色
         {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},//右下的顶点，绿色
         {{-0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}}//左下的顶点，蓝色
     };
+    //数据大小
+    auto VerticeDataSize = sizeof(vertexes[0]) * vertexes.size();
+
     //创建缓冲区
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType=VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size=sizeof(vertices[0])*vertices.size();
+    bufferInfo.size=stastic_cast<VkDeviceSize>(VerticeDataSize);
     bufferInfo.usage=VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     bufferInfo.sharingMode=VK_SHARING_MODE_EXCLUSIVE;
     bufferInfo.pQueueFamilyIndices=queueFamiliesIndexes.data();
@@ -415,24 +418,27 @@ int main(){
     vkGetBufferMemoryRequirements(device,buffer,&memeryReq);
 
     //查询物理设备内存属性
-    VkPhysicalDeviceMemoryProperties physicalDeviceMemoryProperties;
-    vkGetPhysicalDeviceMemoryProperties(physicalDevice,&physicalDeviceMemoryProperties);
-    //LOGI<< "memoryTypeCount--" <<physicalDeviceMemoryProperties.memoryTypeCount;
-    //LOGI<< "memoryHeapCount--" <<physicalDeviceMemoryProperties.memoryHeapCount;
+    VkPhysicalDeviceMemoryProperties memoryProperties;
+    vkGetPhysicalDeviceMemoryProperties(physicalDevice,&memoryProperties);
+    //LOGI<< "memoryTypeCount--" <<memoryProperties.memoryTypeCount;
+    //LOGI<< "memoryHeapCount--" <<memoryProperties.memoryHeapCount;
 
-    //获得内存类型index，选择策略待进一步实现
+    //选择memory type，获得index
     uint32_t memoryTypeIndex = UINT32_MAX;
-    for(uint32_t i=0;i<physicalDeviceMemoryProperties.memoryTypeCount;++i){
-        if(memeryReq.memoryTypeBits & (1<<i)){
-            memoryTypeIndex = i;
-            break;
+    VkMemoryPropertyFlags memoryPropertyFlag = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+    for(uint32_t i=0;i<memoryProperties.memoryTypeCount;++i){
+        if(memeryReq.memoryTypeBits & (1<<i) &&
+        (memoryProperties.memoryTypes[i].propertyFlags & memoryPropertyFlag) == memoryPropertyFlag)
+        {
+               memoryTypeIndex = i;
+                break;
         }
     }
     if(UINT32_MAX == memoryTypeIndex){
         LOGE<<"there is no proper memory type";
         return -1;
     }
-    //LOGI << "memoryTypeIndex==" << memoryTypeIndex;
+    LOGI << "memoryTypeIndex==" << memoryTypeIndex;
 
     //申请内存
     VkMemoryAllocateInfo memoryInfo{};
@@ -449,7 +455,48 @@ int main(){
     LOGI << "allocate memory";
     MemoryFreer memoryFreer{&device,&memory};
 
-    
+    //将memory与buffer绑定
+    myVkResult=vkBindBufferMemory(device,buffer,memory,0);
+    if(VK_SUCCESS != myVkResult){
+        LOGE<<"vkBindBufferMemory--"<<VkResultToString(myVkResult);
+        return -1;
+    }
 
+    //将memory映射到内存空间
+    void *data;
+    myVkResult = vkMapMemory(device,memory,0,stastic_cast<VkDeviceSize>(VerticeDataSize),0,&data);
+    if(VK_SUCCESS != myVkResult){
+        LOGE<<"vkMapMemory--"<<VkResultToString(myVkResult);
+        return -1;
+    }
+    memcpy(data,vertexes.data(),static_cast<size_t>(VerticeDataSize));
+    vkUnmapMemory(device,memory);
+
+    //pipeline配置vertex绑定信息
+    //binding信息
+    vector<VkVertexInputBindingDescription> vertexBindingInfos;
+    //第1个binding信息(共1个)
+    VkVertexInputBindingDescription vertexBindingInfo{};
+    vertexBindingInfo.binding=0;
+    vertexBindingInfo.stride=stastic_cast<uint32_t>(sizeof(vetexes[0]));
+    vertexBindingInfo.inputRate=VK_VERTEX_INPUT_RATE_VERTEX;
+    vertexBindingInfos.push_back(vertexBindingInfo);
+    //attribute信息
+    vector<VkVertexInputAttributeDescription> vertexAttributeInfos;
+    //第1个attribute信息(共2个)
+    VkVertexInputAttributeDescription vertexAttributeInfo_0{};
+    vertexAttributeInfo_0.location=0;
+    vertexAttributeInfo_0.binding=0;
+    vertexAttributeInfo_0.format=VK_FORMAT_R32G32_SFLOAT;
+    vertexAttributeInfo_0.offset=offsetof(Vertex, position);
+    vertexAttributeInfos.push_back(vertexAttributeInfo_0);
+    //第2个attribute信息(共2个)
+    VkVertexInputAttributeDescription vertexAttributeInfo_1{};
+    vertexAttributeInfo_1.location=1;
+    vertexAttributeInfo_1.binding=0;
+    vertexAttributeInfo_1.format=VK_FORMAT_R32G32B32_SFLOAT;
+    vertexAttributeInfo_1.offset=offsetof(Vertex, color);
+    vertexAttributeInfos.push_back(vertexAttributeInfo_1);
+    
     return 0;
 }
