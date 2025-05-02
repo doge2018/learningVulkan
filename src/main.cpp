@@ -6,6 +6,7 @@
 #include <glm/glm.hpp>
 #include <plog/Log.h>
 #include "plog/Initializers/RollingFileInitializer.h"
+#include<array>
 //#define _PRINT_SOMETHING_FOR_LEARNING
 
 using namespace std;
@@ -481,6 +482,7 @@ int main(){
     vertexBindingInfo.stride=static_cast<uint32_t>(sizeof(vertexes[0]));
     vertexBindingInfo.inputRate=VK_VERTEX_INPUT_RATE_VERTEX;
     vertexBindingInfos.push_back(vertexBindingInfo);
+    const uint32_t vertexBindingInfocount{static_cast<uint32_t>(vertexBindingInfos.size())};
     //attribute信息
     vector<VkVertexInputAttributeDescription> vertexAttributeInfos;
     //第1个attribute信息(共2个)
@@ -497,6 +499,14 @@ int main(){
     vertexAttributeInfo_1.format=VK_FORMAT_R32G32B32_SFLOAT;
     vertexAttributeInfo_1.offset=offsetof(Vertex, color);
     vertexAttributeInfos.push_back(vertexAttributeInfo_1);
+    const uint32_t vertexAttributeInfocount{static_cast<uint32_t>(vertexAttributeInfos.size())};
+    //VkPipelineVertexInputStateCreateInfo
+    VkPipelineVertexInputStateCreateInfo pipelineVertexInfo{};
+    pipelineVertexInfo.sType=VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    pipelineVertexInfo.pVertexBindingDescriptions=vertexBindingInfos.data();
+    pipelineVertexInfo.vertexBindingDescriptionCount=vertexBindingInfocount;
+    pipelineVertexInfo.pVertexAttributeDescriptions=vertexAttributeInfos.data();
+    pipelineVertexInfo.vertexAttributeDescriptionCount=vertexAttributeInfocount;
 
     //读取spv文件
     const string vshader = "C:\\onedrive\\project\\learningVulkan\\shaders\\shader.vert.spv";
@@ -518,7 +528,7 @@ int main(){
     vshaderModuleInfo.codeSize=vvshader.size();
     vshaderModuleInfo.pCode=reinterpret_cast<const uint32_t*>(vvshader.data());
     //create
-    VkShaderModule vshaderModule;
+    VkShaderModule vshaderModule, fshaderModule;
     myVkResult=vkCreateShaderModule(device,&vshaderModuleInfo,nullptr,&vshaderModule);
     if(VK_SUCCESS != myVkResult){
         LOGE<<"vkCreateShaderModule vertex--"<<VkResultToString(myVkResult);
@@ -532,7 +542,6 @@ int main(){
     fshaderModuleInfo.codeSize=vfshader.size();
     fshaderModuleInfo.pCode=reinterpret_cast<const uint32_t*>(vfshader.data());
     //create
-    VkShaderModule fshaderModule;
     myVkResult=vkCreateShaderModule(device,&fshaderModuleInfo,nullptr,&fshaderModule);
     if(VK_SUCCESS != myVkResult){
         LOGE<<"vkCreateShaderModule fragment--"<<VkResultToString(myVkResult);
@@ -540,6 +549,20 @@ int main(){
     }
     LOGI<<"create fragment shader module";
     ShaderModuleCleaner fshaderModuleCleaner{&device,&fshaderModule};
+
+    //VkPipelineShaderStageCreateInfo,当前含有2项(2个阶段)
+    array<VkPipelineShaderStageCreateInfo,2> pipelineShaderInfos{};
+    const string enterFunction = "main";
+    //vertex shader阶段
+    pipelineShaderInfos[0].sType=VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    pipelineShaderInfos[0].stage=VK_SHADER_STAGE_VERTEX_BIT;
+    pipelineShaderInfos[0].module=vshaderModule;
+    pipelineShaderInfos[0].pName=enterFunction.c_str();
+    //fragment shader阶段
+    pipelineShaderInfos[1].sType=VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    pipelineShaderInfos[1].stage=VK_SHADER_STAGE_FRAGMENT_BIT;
+    pipelineShaderInfos[1].module=fshaderModule;
+    pipelineShaderInfos[1].pName=enterFunction.c_str();
 
     //create pipeline layout
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
@@ -555,6 +578,20 @@ int main(){
     PipelineLayoutCleaner pipelineLayoutCleaner{&device,&pipelineLayout};
 
     //create pipeline
+    //VkPipelineInputAssemblyStateCreateInfo
+    VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyInfo{};
+    pipelineInputAssemblyInfo.sType=VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    pipelineInputAssemblyInfo.topology=VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    pipelineInputAssemblyInfo.primitiveRestartEnable=VK_FALSE;
+
+    //pipelineInfo
+    VkGraphicsPipelineCreateInfo pipelineInfo{};
+    //当前被忽略的项
+    pipelineInfo.pTessellationState=nullptr;
+    pipelineInfo.pDepthStencilState=nullptr;
+
+
+    pipelineInfo.sType=VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 
 
     return 0;
