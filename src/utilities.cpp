@@ -1,4 +1,5 @@
 #include"utilities.h"
+#include <fstream>
 #include <plog/Log.h>
 #include "plog/Initializers/RollingFileInitializer.h"
 using namespace std;
@@ -136,7 +137,26 @@ bool getPhysicalDeviceSurfaceFormat(VkPhysicalDevice *physicalDevice,VkSurfaceKH
     return true;
 }
 
-
+vector<char> readSPVFile(const string &filename){
+    ifstream file(filename,ios::ate|ios::binary);
+    if(!file){
+        LOGE<<"fail to open file:"<<filename;
+        return {};
+    }
+    size_t fileSize = static_cast<size_t>(file.tellg());
+    if(0 == fileSize){
+        LOGE<<"file is empty:"<<filename;
+        return {};
+    }
+    std::vector<char> buffer(fileSize);
+    file.seekg(0);
+    file.read(buffer.data(), fileSize);
+    if(file.fail()){
+        LOGE<<"file fails:"<<filename;
+        return {};
+    }
+    return buffer;
+}
 
 
 

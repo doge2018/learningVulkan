@@ -139,4 +139,28 @@ private:
     VkDeviceMemory *_pmemory;
 };
 
+struct ShaderModuleCleaner{
+    ShaderModuleCleaner(VkDevice *pdevice,VkShaderModule *pshaderModule):_pdevice(pdevice),_pshaderModule(pshaderModule){
+    }
+    ~ShaderModuleCleaner(){
+        vkDestroyShaderModule(*_pdevice,*_pshaderModule,nullptr);
+        LOGI<<"vkDestroyShaderModule";
+    }
+private:
+    VkDevice *_pdevice;
+    VkShaderModule *_pshaderModule;
+};
+
+struct PipelineLayoutCleaner{
+    PipelineLayoutCleaner(VkDevice *pdevice,VkPipelineLayout *ppipelineLayout):_pdevice(pdevice),_ppipelineLayout(ppipelineLayout){
+    }
+    ~PipelineLayoutCleaner(){
+        vkDestroyPipelineLayout(*_pdevice,*_ppipelineLayout,nullptr);
+        LOGI<<"vkDestroyPipelineLayout";
+    }
+private:
+    VkDevice *_pdevice;
+    VkPipelineLayout *_ppipelineLayout;
+};
+
 #endif

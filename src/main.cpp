@@ -398,7 +398,7 @@ int main(){
     //创建缓冲区
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType=VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size=stastic_cast<VkDeviceSize>(VerticeDataSize);
+    bufferInfo.size=static_cast<VkDeviceSize>(VerticeDataSize);
     bufferInfo.usage=VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     bufferInfo.sharingMode=VK_SHARING_MODE_EXCLUSIVE;
     bufferInfo.pQueueFamilyIndices=queueFamiliesIndexes.data();
@@ -464,7 +464,7 @@ int main(){
 
     //将memory映射到内存空间
     void *data;
-    myVkResult = vkMapMemory(device,memory,0,stastic_cast<VkDeviceSize>(VerticeDataSize),0,&data);
+    myVkResult = vkMapMemory(device,memory,0,static_cast<VkDeviceSize>(VerticeDataSize),0,&data);
     if(VK_SUCCESS != myVkResult){
         LOGE<<"vkMapMemory--"<<VkResultToString(myVkResult);
         return -1;
@@ -472,13 +472,13 @@ int main(){
     memcpy(data,vertexes.data(),static_cast<size_t>(VerticeDataSize));
     vkUnmapMemory(device,memory);
 
-    //pipeline配置vertex绑定信息
+    //创建pipeline vertex绑定信息
     //binding信息
     vector<VkVertexInputBindingDescription> vertexBindingInfos;
     //第1个binding信息(共1个)
     VkVertexInputBindingDescription vertexBindingInfo{};
     vertexBindingInfo.binding=0;
-    vertexBindingInfo.stride=stastic_cast<uint32_t>(sizeof(vetexes[0]));
+    vertexBindingInfo.stride=static_cast<uint32_t>(sizeof(vertexes[0]));
     vertexBindingInfo.inputRate=VK_VERTEX_INPUT_RATE_VERTEX;
     vertexBindingInfos.push_back(vertexBindingInfo);
     //attribute信息
@@ -497,6 +497,65 @@ int main(){
     vertexAttributeInfo_1.format=VK_FORMAT_R32G32B32_SFLOAT;
     vertexAttributeInfo_1.offset=offsetof(Vertex, color);
     vertexAttributeInfos.push_back(vertexAttributeInfo_1);
-    
+
+    //读取spv文件
+    const string vshader = "C:\\onedrive\\project\\learningVulkan\\shaders\\shader.vert.spv";
+    const string fshader = "C:\\onedrive\\project\\learningVulkan\\shaders\\shader.frag.spv";
+    vector<char> vvshader=readSPVFile(vshader);
+    vector<char> vfshader=readSPVFile(fshader);
+    if(vvshader.empty()){
+        LOGE<<"vvshader.empty";
+        return -1;
+    }
+    if(vfshader.empty()){
+        LOGE<<"vfshader.empty";
+        return -1;
+    }
+    //create shader module
+    //vertex shader module
+    VkShaderModuleCreateInfo vshaderModuleInfo{};
+    vshaderModuleInfo.sType=VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    vshaderModuleInfo.codeSize=vvshader.size();
+    vshaderModuleInfo.pCode=reinterpret_cast<const uint32_t*>(vvshader.data());
+    //create
+    VkShaderModule vshaderModule;
+    myVkResult=vkCreateShaderModule(device,&vshaderModuleInfo,nullptr,&vshaderModule);
+    if(VK_SUCCESS != myVkResult){
+        LOGE<<"vkCreateShaderModule vertex--"<<VkResultToString(myVkResult);
+        return -1;
+    }
+    LOGI<<"create vertex shader module";
+    ShaderModuleCleaner vshaderModuleCleaner{&device,&vshaderModule};
+    //fragment shader module
+    VkShaderModuleCreateInfo fshaderModuleInfo{};
+    fshaderModuleInfo.sType=VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    fshaderModuleInfo.codeSize=vfshader.size();
+    fshaderModuleInfo.pCode=reinterpret_cast<const uint32_t*>(vfshader.data());
+    //create
+    VkShaderModule fshaderModule;
+    myVkResult=vkCreateShaderModule(device,&fshaderModuleInfo,nullptr,&fshaderModule);
+    if(VK_SUCCESS != myVkResult){
+        LOGE<<"vkCreateShaderModule fragment--"<<VkResultToString(myVkResult);
+        return -1;
+    }
+    LOGI<<"create fragment shader module";
+    ShaderModuleCleaner fshaderModuleCleaner{&device,&fshaderModule};
+
+    //create pipeline layout
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+    pipelineLayoutInfo.sType=VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    //create
+    VkPipelineLayout pipelineLayout;
+    myVkResult=vkCreatePipelineLayout(device,&pipelineLayoutInfo,nullptr,&pipelineLayout);
+    if(VK_SUCCESS != myVkResult){
+        LOGE<<"vkCreatePipelineLayout--"<<VkResultToString(myVkResult);
+        return -1;
+    }
+    LOGI<<"create pipeline layout";
+    PipelineLayoutCleaner pipelineLayoutCleaner{&device,&pipelineLayout};
+
+    //create pipeline
+
+
     return 0;
 }

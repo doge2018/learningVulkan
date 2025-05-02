@@ -12,5 +12,7 @@ bool getPhysicalDeviceSurfaceFormat(
     VkPhysicalDevice *physicalDevice,
     VkSurfaceKHR *surface,
     std::vector<VkSurfaceFormatKHR> &formats);
+//read a spv file
+std::vector<char> readSPVFile(const std::string &filename);
 
 #endif
