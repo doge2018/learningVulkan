@@ -20,6 +20,8 @@ VkResult myVkResult;
 //image格式srbg、非线性空间
 const VkFormat imageFormat = VK_FORMAT_B8G8R8A8_SRGB;
 VkColorSpaceKHR imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+const int glfwWidth = 800;
+const int glfwHeight = 800;
 
 int main(){
     //日志初始化
@@ -76,8 +78,6 @@ int main(){
 
     //创建glfw window
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    const int glfwWidth = 800;
-    const int glfwHeight = 800;
     const char *glfwTitle = "my window";
     GLFWwindow *pwindow = glfwCreateWindow(glfwWidth,glfwHeight,glfwTitle,NULL,NULL);
     if(NULL==pwindow){
@@ -390,8 +390,8 @@ int main(){
     };
     std::vector<Vertex> vertexes = {
         {{0.0f, 0.5f}, {1.0f, 0.0f, 0.0f}},//上面的顶点，红色
+        {{-0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}},//左下的顶点，蓝色
         {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},//右下的顶点，绿色
-        {{-0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}}//左下的顶点，蓝色
     };
     //数据大小
     auto VerticeDataSize = sizeof(vertexes[0]) * vertexes.size();
@@ -551,18 +551,20 @@ int main(){
     ShaderModuleCleaner fshaderModuleCleaner{&device,&fshaderModule};
 
     //VkPipelineShaderStageCreateInfo,当前含有2项(2个阶段)
-    array<VkPipelineShaderStageCreateInfo,2> pipelineShaderInfos{};
+    array<VkPipelineShaderStageCreateInfo,2> pipelineStageInfos{};
     const string enterFunction = "main";
-    //vertex shader阶段
-    pipelineShaderInfos[0].sType=VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    pipelineShaderInfos[0].stage=VK_SHADER_STAGE_VERTEX_BIT;
-    pipelineShaderInfos[0].module=vshaderModule;
-    pipelineShaderInfos[0].pName=enterFunction.c_str();
-    //fragment shader阶段
-    pipelineShaderInfos[1].sType=VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    pipelineShaderInfos[1].stage=VK_SHADER_STAGE_FRAGMENT_BIT;
-    pipelineShaderInfos[1].module=fshaderModule;
-    pipelineShaderInfos[1].pName=enterFunction.c_str();
+    //vertex shader stage
+    pipelineStageInfos[0].sType=VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    pipelineStageInfos[0].stage=VK_SHADER_STAGE_VERTEX_BIT;
+    pipelineStageInfos[0].module=vshaderModule;
+    pipelineStageInfos[0].pName=enterFunction.c_str();
+    //fragment shader stage
+    pipelineStageInfos[1].sType=VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    pipelineStageInfos[1].stage=VK_SHADER_STAGE_FRAGMENT_BIT;
+    pipelineStageInfos[1].module=fshaderModule;
+    pipelineStageInfos[1].pName=enterFunction.c_str();
+    uint32_t pipelineStageCount{static_cast<uint32_t>(pipelineStageInfos.size())};
+
 
     //create pipeline layout
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
@@ -583,16 +585,93 @@ int main(){
     pipelineInputAssemblyInfo.sType=VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
     pipelineInputAssemblyInfo.topology=VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     pipelineInputAssemblyInfo.primitiveRestartEnable=VK_FALSE;
+    //VkPipelineViewportStateCreateInfo
+    //view port
+    vector<VkViewport> viewports;
+    //第1个view port(共1个)
+    VkViewport viewport{};
+    viewport.x=0.0f;
+    viewport.y=0.0f;
+    viewport.width=static_cast<float>(extent.width);
+    viewport.height=static_cast<float>(extent.height);
+    viewport.minDepth=0.0f;
+    viewport.maxDepth=1.0f;
+    viewports.push_back(viewport);
+    const uint32_t viewportCount{static_cast<uint32_t>(viewports.size())};
+    //裁剪区域
+    vector<VkRect2D> scissors;
+    //第1个裁剪区域(共1个)
+    VkRect2D scissor{};
+    scissor.offset={0,0};
+    scissor.extent=extent;
+    scissors.push_back(scissor);
+    const uint32_t scissorsCount{static_cast<uint32_t>(scissors.size())};
+    VkPipelineViewportStateCreateInfo viewportInfo{};
+    viewportInfo.sType=VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportInfo.pViewports=viewports.data();
+    viewportInfo.viewportCount=viewportCount;
+    viewportInfo.pScissors=scissors.data();
+    viewportInfo.scissorCount=scissorsCount;
+    //VkPipelineRasterizationStateCreateInfo
+    VkPipelineRasterizationStateCreateInfo resterizationStateInfo{};
+    resterizationStateInfo.sType=VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    resterizationStateInfo.depthClampEnable=VK_FALSE;
+    resterizationStateInfo.rasterizerDiscardEnable=VK_FALSE;
+    resterizationStateInfo.polygonMode=VK_POLYGON_MODE_FILL;
+    resterizationStateInfo.cullMode=VK_CULL_MODE_BACK_BIT;
+    resterizationStateInfo.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    resterizationStateInfo.depthBiasEnable=VK_FALSE;
+    resterizationStateInfo.lineWidth=1.0f;
+    //VkPipelineMultisampleStateCreateInfo
+    VkPipelineMultisampleStateCreateInfo multiSampleInfo{};
+    multiSampleInfo.sType=VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multiSampleInfo.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
+    multiSampleInfo.sampleShadingEnable=VK_FALSE;
+    multiSampleInfo.alphaToCoverageEnable=VK_FALSE;
+    multiSampleInfo.alphaToOneEnable=VK_FALSE;
+    multiSampleInfo.minSampleShading=1.0f;
+    multiSampleInfo.pSampleMask=nullptr;
+    //colorBlendAttachmentStates
+    array<VkPipelineColorBlendAttachmentState,1> colorBlendAttachmentStates{};
+    colorBlendAttachmentStates[0].blendEnable=VK_FALSE;
+    colorBlendAttachmentStates[0].colorWriteMask=VK_COLOR_COMPONENT_R_BIT|VK_COLOR_COMPONENT_G_BIT|VK_COLOR_COMPONENT_B_BIT|VK_COLOR_COMPONENT_A_BIT;
+    //VkPipelineColorBlendStateCreateInfo
+    VkPipelineColorBlendStateCreateInfo colorBlendInfo{};
+    colorBlendInfo.sType=VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    colorBlendInfo.logicOpEnable=VK_FALSE;
+    colorBlendInfo.logicOp=VK_LOGIC_OP_COPY;
+    colorBlendInfo.pAttachments=colorBlendAttachmentStates.data();
+    colorBlendInfo.attachmentCount=static_cast<uint32_t>(colorBlendAttachmentStates.size());
 
     //pipelineInfo
+    vector<VkGraphicsPipelineCreateInfo> pipelineInfos;
     VkGraphicsPipelineCreateInfo pipelineInfo{};
-    //当前被忽略的项
+    pipelineInfo.pStages=pipelineStageInfos.data();
+    pipelineInfo.stageCount=pipelineStageCount;
+    pipelineInfo.pVertexInputState=&pipelineVertexInfo;
+    pipelineInfo.pInputAssemblyState=&pipelineInputAssemblyInfo;
     pipelineInfo.pTessellationState=nullptr;
+    pipelineInfo.pViewportState=&viewportInfo;
+    pipelineInfo.pRasterizationState=&resterizationStateInfo;
+    pipelineInfo.pMultisampleState=&multiSampleInfo;
     pipelineInfo.pDepthStencilState=nullptr;
-
+    pipelineInfo.pColorBlendState=&colorBlendInfo;
 
     pipelineInfo.sType=VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-
-
+    pipelineInfo.layout=pipelineLayout;
+    pipelineInfo.renderPass=renderpass;
+    pipelineInfo.subpass=0;//唯一的subpass索引
+    pipelineInfo.basePipelineHandle=VK_NULL_HANDLE;
+    pipelineInfo.basePipelineIndex=-1;
+    pipelineInfos.push_back(pipelineInfo);
+    //create
+    VkPipeline pipeline;//只创建1个
+    myVkResult=vkCreateGraphicsPipelines(device,VK_NULL_HANDLE,static_cast<uint32_t>(pipelineInfos.size()),pipelineInfos.data(),nullptr,&pipeline);
+    if(VK_SUCCESS != myVkResult){
+        LOGE<<"vkCreateGraphicsPipelines--"<<VkResultToString(myVkResult);
+        return -1;
+    }
+    LOGI<<"create pipeline";
+    vkDestroyPipeline(device,pipeline,nullptr);
     return 0;
 }
