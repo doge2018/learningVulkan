@@ -163,4 +163,29 @@ private:
     VkPipelineLayout *_ppipelineLayout;
 };
 
+struct PipelineCleaner{
+    PipelineCleaner(VkDevice *pdevice,VkPipeline *ppipeline):_pdevice(pdevice),_ppipeline(ppipeline){
+    }
+    ~PipelineCleaner(){
+        vkDestroyPipeline(*_pdevice,*_ppipeline,nullptr);
+        LOGI<<"vkDestroyPipeline";
+    }
+private:
+    VkDevice *_pdevice;
+    VkPipeline *_ppipeline;
+};
+
+struct CommandPoolCleaner{
+    CommandPoolCleaner(VkDevice *pdevice,VkCommandPool *pcommandPool):_pdevice(pdevice),_pcommandPool(pcommandPool){
+    }
+    ~CommandPoolCleaner(){
+        vkDestroyCommandPool(*_pdevice,*_pcommandPool,nullptr);
+        LOGI<<"vkDestroyCommandPool";
+    }
+private:
+    VkDevice *_pdevice;
+    VkCommandPool *_pcommandPool;
+};
+
+
 #endif

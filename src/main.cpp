@@ -324,6 +324,8 @@ int main(){
         LOGE<<"2nd vkGetSwapchainImagesKHR--"<<VkResultToString(myVkResult);
         return -1;
     }
+
+    //创建image view和framebuffer
     //所有imageview
     vector<VkImageView> imageviews;
     //所有framebuffer
@@ -414,16 +416,15 @@ int main(){
     LOGI<<"create buffer";
     BufferCleaner bufferCleaner{&device,&buffer};
 
+    //创建memory
     //查询buffer内存需求
     VkMemoryRequirements memeryReq;
     vkGetBufferMemoryRequirements(device,buffer,&memeryReq);
-
     //查询物理设备内存属性
     VkPhysicalDeviceMemoryProperties memoryProperties;
     vkGetPhysicalDeviceMemoryProperties(physicalDevice,&memoryProperties);
     //LOGI<< "memoryTypeCount--" <<memoryProperties.memoryTypeCount;
     //LOGI<< "memoryHeapCount--" <<memoryProperties.memoryHeapCount;
-
     //选择memory type，获得index
     uint32_t memoryTypeIndex = UINT32_MAX;
     VkMemoryPropertyFlags memoryPropertyFlag = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
@@ -440,7 +441,6 @@ int main(){
         return -1;
     }
     LOGI << "memoryTypeIndex==" << memoryTypeIndex;
-
     //申请内存
     VkMemoryAllocateInfo memoryInfo{};
     memoryInfo.sType=VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -666,12 +666,28 @@ int main(){
     pipelineInfos.push_back(pipelineInfo);
     //create
     VkPipeline pipeline;//只创建1个
-    myVkResult=vkCreateGraphicsPipelines(device,VK_NULL_HANDLE,static_cast<uint32_t>(pipelineInfos.size()),pipelineInfos.data(),nullptr,&pipeline);
+    myVkResult = vkCreateGraphicsPipelines(device,VK_NULL_HANDLE,static_cast<uint32_t>(pipelineInfos.size()),pipelineInfos.data(),nullptr,&pipeline);
     if(VK_SUCCESS != myVkResult){
         LOGE<<"vkCreateGraphicsPipelines--"<<VkResultToString(myVkResult);
         return -1;
     }
     LOGI<<"create pipeline";
-    vkDestroyPipeline(device,pipeline,nullptr);
+    PipelineCleaner pipelineCleaner{&device,&pipeline};
+    
+    //创建command pool
+    VkCommandPoolCreateInfo commandPoolInfo;
+    commandPoolInfo.sType=VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    commandPoolInfo.flags=VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;//轻量级分配pool
+    commandPoolInfo.queueFamilyIndex=physicDeviceQueueFamiliesIndex;
+    VkCommandPool commandPool;
+    myVkResult = vkCreateCommandPool(device,&commandPoolInfo,nullptr,&commandPool);
+    if(VK_SUCCESS != myVkResult){
+        LOGE<<"vkCreateCommandPool--"<<VkResultToString(myVkResult);
+        return -1;
+    }
+    LOGI<<"create command pool";
+    CommandPoolCleaner commandPoolCleaner{&device,&commandPool};
+
+
     return 0;
 }
