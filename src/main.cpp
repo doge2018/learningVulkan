@@ -623,7 +623,7 @@ int main(){
     resterizationStateInfo.depthClampEnable=VK_FALSE;
     resterizationStateInfo.rasterizerDiscardEnable=VK_FALSE;
     resterizationStateInfo.polygonMode=VK_POLYGON_MODE_FILL;
-    resterizationStateInfo.cullMode=VK_CULL_MODE_BACK_BIT;
+    resterizationStateInfo.cullMode=VK_CULL_MODE_NONE; //不剔除
     resterizationStateInfo.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE;
     resterizationStateInfo.depthBiasEnable=VK_FALSE;
     resterizationStateInfo.lineWidth=1.0f;
