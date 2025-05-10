@@ -9,6 +9,7 @@
 #include<array>
 //#define _PRINT_SOMETHING_FOR_LEARNING
 
+constexpr int MAX_FRAMES_IN_FLIGHT = 1;
 using namespace std;
 //可优化项：
 //减少硬编码
@@ -21,7 +22,7 @@ VkResult myVkResult;
 const VkFormat imageFormat = VK_FORMAT_B8G8R8A8_SRGB;
 VkColorSpaceKHR imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 const int glfwWidth = 800;
-const int glfwHeight = 800;
+const int glfwHeight = 600;
 
 int main(){
     //日志初始化
@@ -193,6 +194,10 @@ int main(){
     }
     LOGI<<"create device";
     DeviceCleaner deviceCleaner{&device};
+
+    //获取队列
+    VkQueue queue;
+    vkGetDeviceQueue(device,physicDeviceQueueFamiliesIndex,0,&queue);
 
     //查询surface capability
     VkSurfaceCapabilitiesKHR surfaceCapability;
@@ -665,7 +670,7 @@ int main(){
     pipelineInfo.basePipelineIndex=-1;
     pipelineInfos.push_back(pipelineInfo);
     //create
-    VkPipeline pipeline;//只创建1个
+    VkPipeline pipeline;//1个pipeline
     myVkResult = vkCreateGraphicsPipelines(device,VK_NULL_HANDLE,static_cast<uint32_t>(pipelineInfos.size()),pipelineInfos.data(),nullptr,&pipeline);
     if(VK_SUCCESS != myVkResult){
         LOGE<<"vkCreateGraphicsPipelines--"<<VkResultToString(myVkResult);
@@ -688,6 +693,158 @@ int main(){
     LOGI<<"create command pool";
     CommandPoolCleaner commandPoolCleaner{&device,&commandPool};
 
+    //allocate command buffer
+    VkCommandBufferAllocateInfo commandBufferInfo{};
+    commandBufferInfo.sType=VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    commandBufferInfo.commandPool=commandPool;
+    commandBufferInfo.level=VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    commandBufferInfo.commandBufferCount=(uint32_t)1;
+    //allocate
+    VkCommandBuffer commandBuffer;
+    myVkResult = vkAllocateCommandBuffers(device,&commandBufferInfo,&commandBuffer);
+    if(VK_SUCCESS != myVkResult){
+        LOGE<<"vkAllocateCommandBuffers--"<<VkResultToString(myVkResult);
+        return -1;
+    }
 
-    return 0;
+    //创建semaphore
+    VkSemaphoreCreateInfo semaphoreInfo{};
+    semaphoreInfo.sType=VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    //创建
+    VkSemaphore imageAvailableSemaphore;
+    VkSemaphore renderFinishedSemaphore;
+    myVkResult = vkCreateSemaphore(device,&semaphoreInfo,nullptr,&imageAvailableSemaphore);
+    if(VK_SUCCESS != myVkResult){
+        LOGE<<"create imageAvailableSemaphore--"<<VkResultToString(myVkResult);
+        return -1;
+    }
+    myVkResult = vkCreateSemaphore(device,&semaphoreInfo,nullptr,&renderFinishedSemaphore);
+    if(VK_SUCCESS != myVkResult){
+        LOGE<<"create renderFinishedSemaphore--"<<VkResultToString(myVkResult);
+        return -1;
+    }
+    LOGI<<"create semaphores";
+    SemaphoreCleaner imageAvailableSemaphoreCleaner{&device,&imageAvailableSemaphore},renderFinishedSemaphoreCleaner{&device,&renderFinishedSemaphore};
+
+    //创建fence
+    VkFenceCreateInfo fenceInfo{};
+    fenceInfo.sType=VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags=VK_FENCE_CREATE_SIGNALED_BIT;//创建即signaled
+    VkFence fence;
+    myVkResult = vkCreateFence(device,&fenceInfo,nullptr,&fence);
+    if(VK_SUCCESS != myVkResult){
+        LOGE<<"vkCreateFence--"<<VkResultToString(myVkResult);
+        return -1;
+    }
+    LOGI<<"create fence";
+    FenceCleaner fenceCleaner{&device,&fence};
+
+    //渲染循环
+    while (!glfwWindowShouldClose(pwindow)){
+        glfwPollEvents();
+
+        //等待GPU signal fence: command buffer上一帧指令执行完成
+        myVkResult = vkWaitForFences(device,1,&fence,VK_TRUE,UINT64_MAX);
+        if(VK_SUCCESS != myVkResult){
+            LOGE<<"vkWaitForFences--"<<VkResultToString(myVkResult);
+            return -1;
+        }
+
+        //reset fence
+        myVkResult = vkResetFences(device,1,&fence);
+        if(VK_SUCCESS != myVkResult){
+            LOGE<<"vkResetFences--"<<VkResultToString(myVkResult);
+            return -1;
+        }
+
+        //reset command buffer
+        myVkResult = vkResetCommandPool(device,commandPool,0);
+        if(VK_SUCCESS != myVkResult){
+            LOGE<<"vkResetCommandPool--"<<VkResultToString(myVkResult);
+            return -1;
+        }
+
+        //acquire an image
+        uint32_t image_index;
+        myVkResult = vkAcquireNextImageKHR(device,swapchain,UINT64_MAX,imageAvailableSemaphore,VK_NULL_HANDLE,&image_index);
+        if(VK_SUCCESS != myVkResult){
+            LOGE<<"vkAcquireNextImageKHR--"<<VkResultToString(myVkResult);
+            return -1;
+        }
+        LOGI<<image_index;
+
+        //command buffer录制开始
+        VkCommandBufferBeginInfo commandBeginInfo{};
+        commandBeginInfo.sType=VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        myVkResult = vkBeginCommandBuffer(commandBuffer,&commandBeginInfo);
+        if(VK_SUCCESS != myVkResult){
+            LOGE<<"vkBeginCommandBuffer--"<<VkResultToString(myVkResult);
+            return -1;
+        }
+        
+        //begin render pass
+        VkRenderPassBeginInfo renderPassBeginInfo{};
+        renderPassBeginInfo.sType=VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        renderPassBeginInfo.renderPass=renderpass;
+        renderPassBeginInfo.framebuffer=framebuffers[image_index];
+        renderPassBeginInfo.renderArea.offset={0,0};
+        renderPassBeginInfo.renderArea.extent=extent;
+        VkClearValue clearColor={{{0.0,0.0,0.0,1.0}}};
+        renderPassBeginInfo.pClearValues=&clearColor;
+        renderPassBeginInfo.clearValueCount=1;
+        vkCmdBeginRenderPass(commandBuffer,&renderPassBeginInfo,VK_SUBPASS_CONTENTS_INLINE);
+
+        //bind pipeline
+        vkCmdBindPipeline(commandBuffer,VK_PIPELINE_BIND_POINT_GRAPHICS,pipeline);
+
+        //bind vertex
+        VkDeviceSize vertexBufferOffset{0};
+        vkCmdBindVertexBuffers(commandBuffer,0,1,&buffer,&vertexBufferOffset);
+        
+        //draw
+        vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+
+        //end render pass
+        vkCmdEndRenderPass(commandBuffer);
+        //结束录制
+        myVkResult = vkEndCommandBuffer(commandBuffer);
+        if(VK_SUCCESS != myVkResult){
+            LOGE<<"vkEndCommandBuffer--"<<VkResultToString(myVkResult);
+            return -1;
+        }
+
+        //submit
+        VkSubmitInfo submitInfo{};
+        submitInfo.sType=VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.waitSemaphoreCount=1;
+        submitInfo.pWaitSemaphores=&imageAvailableSemaphore; //wait semaphore
+        VkPipelineStageFlags stageFlag = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        submitInfo.pWaitDstStageMask=&stageFlag;
+        submitInfo.commandBufferCount=1;
+        submitInfo.pCommandBuffers=&commandBuffer;
+        submitInfo.signalSemaphoreCount=1;
+        submitInfo.pSignalSemaphores=&renderFinishedSemaphore; //signal semaphore
+        myVkResult = vkQueueSubmit(queue,1,&submitInfo,fence);
+        if(VK_SUCCESS != myVkResult){
+            LOGE<<"vkQueueSubmit--"<<VkResultToString(myVkResult);
+            return -1;
+        }
+
+        //present
+        VkPresentInfoKHR presentInfo{};
+        presentInfo.sType=VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+        presentInfo.waitSemaphoreCount=1;
+        presentInfo.pWaitSemaphores=&renderFinishedSemaphore;
+        presentInfo.swapchainCount=1;
+        presentInfo.pSwapchains=&swapchain;
+        presentInfo.pImageIndices=&image_index;
+        myVkResult = vkQueuePresentKHR(queue,&presentInfo);
+        if(VK_SUCCESS != myVkResult){
+            LOGE<<"vkQueuePresentKHR--"<<VkResultToString(myVkResult);
+            return -1;
+        }
+
+
+    }
+    vkDeviceWaitIdle(device);
 }

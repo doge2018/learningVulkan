@@ -186,6 +186,31 @@ private:
     VkDevice *_pdevice;
     VkCommandPool *_pcommandPool;
 };
+struct FenceCleaner{
+    FenceCleaner(VkDevice *pdevice,VkFence *pfence):_pdevice(pdevice),_pfence(pfence){
+    }
+    ~FenceCleaner(){
+        vkDestroyFence(*_pdevice,*_pfence,nullptr);
+        LOGI<<"vkDestroyFence";
+    }
+private:
+    VkDevice *_pdevice;
+    VkFence *_pfence;
+};
+
+struct SemaphoreCleaner{
+    SemaphoreCleaner(VkDevice *pdevice,VkSemaphore *psemaphore):_pdevice(pdevice),_psemaphore(psemaphore){
+    }
+    ~SemaphoreCleaner(){
+        vkDestroySemaphore(*_pdevice,*_psemaphore,nullptr);
+        LOGI<<"vkDestroySemaphore";
+    }
+private:
+    VkDevice *_pdevice;
+    VkSemaphore *_psemaphore;
+};
+
+
 
 
 #endif
